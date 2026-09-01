@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <title>Droppy — Screenshot Inbox</title>
+  <link rel="icon" type="image/png" href="logo.png">
+  <link rel="apple-touch-icon" href="logo.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header Section -->
+    <header class="header">
+      <div class="brand-bar">
+        <img src="logo.png" alt="Droppy Logo" class="brand-logo">
+        <div class="brand-info">
+          <h1 class="title">Droppy</h1>
+          <div class="subtitle">Screenshot Inbox for Figma</div>
+        </div>
+      </div>
+
+      <div class="connection-bar">
+        <span class="status-dot"></span>
+        <span id="connectionInfo">Connected to: <strong id="hostName">detecting...</strong></span>
+      </div>
+
+      <div class="count-badge" id="queueCount">Checking inbox...</div>
+      <div id="statusBanner" class="banner hidden"></div>
+      <div id="feedbackBanner" class="feedback-banner hidden"></div>
+    </header>
+
+    <!-- Upload Section -->
+    <section class="upload-section" aria-label="Upload Screenshots">
+      <!-- Hidden multi-file input -->
+      <input type="file" id="fileInput" multiple accept="image/png, image/jpeg, image/jpg, image/webp, image/*" class="file-input-hidden">
+
+      <!-- Idle Select Button -->
+      <div id="idleUploadContainer">
+        <button type="button" id="selectBtn" class="btn btn-select">
+          <span class="btn-select-icon">📸</span>
+          <span class="btn-select-text">Select Screenshots</span>
+          <span class="btn-select-sub">Multi-selection supported</span>
+        </button>
+      </div>
+
+      <!-- Multi-Preview Card (shown when 1 or more files are picked) -->
+      <div id="previewCard" class="preview-card hidden">
+        <div class="preview-header">
+          <div id="previewCountBadge" class="preview-count-badge">1 selected</div>
+          <button type="button" id="addMoreBtn" class="btn-text">+ Add more</button>
+        </div>
+
+        <div id="previewThumbnails" class="preview-grid">
+          <!-- Dynamically populated selected files -->
+        </div>
+
+        <div class="preview-actions">
+          <button type="button" id="sendBtn" class="btn btn-primary">Send to Figma</button>
+          <button type="button" id="cancelBtn" class="btn btn-secondary">Cancel</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Queue List Section -->
+    <section class="queue-section" aria-label="Screenshot Queue">
+      <div class="queue-header">
+        <h2 class="section-title">Inbox Queue</h2>
+      </div>
+
+      <!-- Skeleton Loading State -->
+      <div id="skeletonContainer" class="skeleton-list">
+        <div class="skeleton-card">
+          <div class="skeleton-thumb shimmer"></div>
+          <div class="skeleton-info">
+            <div class="skeleton-line line-title shimmer"></div>
+            <div class="skeleton-line line-subtitle shimmer"></div>
+          </div>
+        </div>
+        <div class="skeleton-card">
+          <div class="skeleton-thumb shimmer"></div>
+          <div class="skeleton-info">
+            <div class="skeleton-line line-title shimmer"></div>
+            <div class="skeleton-line line-subtitle shimmer"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Empty State -->
+      <div id="emptyState" class="empty-state hidden">
+        No screenshots waiting
+      </div>
+
+      <!-- Active Queue List -->
+      <div id="queueList" class="queue-list">
+        <!-- Rendered items will appear here -->
+      </div>
+
+      <!-- Footer Actions -->
+      <div id="queueFooter" class="queue-footer hidden">
+        <button type="button" id="clearAllBtn" class="btn btn-danger">Clear All</button>
+      </div>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
