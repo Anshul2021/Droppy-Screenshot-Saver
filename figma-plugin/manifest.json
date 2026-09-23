@@ -1,5 +1,5 @@
 {
-  "name": "Screenshot Inbox",
+  "name": "Droppy — Screenshot Inbox",
   "id": "droppy-screenshot-inbox",
   "api": "1.0.0",
   "main": "code.js",
@@ -9,11 +9,19 @@
   ],
   "networkAccess": {
     "allowedDomains": [
-      "none"
+      "https://*.supabase.co",
+      "https://*.supabase.in",
+      "https://*.vercel.app",
+      "https://*.google.com",
+      "https://*.googleapis.com",
+      "https://cdn.jsdelivr.net",
+      "https://cdnjs.cloudflare.com",
+      "https://api.qrserver.com",
+      "http://localhost:*"
     ],
     "devAllowedDomains": [
-      "http://localhost:3847"
+      "*"
     ],
-    "reasoning": "Connects to local Droppy server to fetch queued screenshots and insert them into Figma canvas."
+    "reasoning": "Droppy connects to Supabase and Vercel cloud to securely sync screenshot inbox across your mobile phone and Figma."
   }
 }

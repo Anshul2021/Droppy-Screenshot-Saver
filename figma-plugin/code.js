@@ -1,8 +1,8 @@
 // Droppy - Screenshot Inbox (Figma Plugin Main Thread)
 
 figma.showUI(__html__, {
-  width: 360,
-  height: 560,
+  width: 380,
+  height: 600,
   title: 'Droppy — Screenshot Inbox'
 });
 

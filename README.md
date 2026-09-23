@@ -1,102 +1,118 @@
-# 💧 Droppy — Screenshot Inbox for Figma
+# 💧 Droppy — Cloud & Local Screenshot Inbox for Figma
 
-> **Bridge screenshots from your phone to your Figma canvas in seconds over local Wi-Fi — zero cloud, zero accounts, zero config.**
+> **Bridge screenshots from your phone to your Figma canvas in real-time — powered by Supabase Cloud & Vercel or Local Wi-Fi.**
 
 <p align="left">
   <img src="https://img.shields.io/badge/Figma-Plugin-blue?logo=figma&logoColor=white" alt="Figma Plugin" />
-  <img src="https://img.shields.io/badge/Node.js-18+-green?logo=node.js&logoColor=white" alt="Node.js" />
-  <img src="https://img.shields.io/badge/Network-Local%20Wi--Fi-purple" alt="Local Wi-Fi" />
+  <img src="https://img.shields.io/badge/Deploy-Vercel-black?logo=vercel&logoColor=white" alt="Vercel" />
+  <img src="https://img.shields.io/badge/Backend-Supabase-emerald?logo=supabase&logoColor=white" alt="Supabase" />
   <img src="https://img.shields.io/badge/License-MIT-gray" alt="MIT" />
 </p>
 
 ---
 
-## ⚡ Quick Start for New Users (Takes 2 Minutes)
+## 🌟 What is Droppy Cloud?
 
-Follow these 4 simple steps on any new computer or device:
+Droppy allows anyone to take screenshots on their mobile phone and have them appear **live inside their Figma canvas in real time**.
 
-### 1️⃣ Clone & Start the Server
+- 📱 **Zero App Installation for Phone**: Users simply scan a QR code from Figma.
+- ⚡ **Direct-to-Cloud Upload**: Uploads directly to Supabase Storage with Row-Level Security (RLS).
+- 🗂️ **Figma Section Organizer**: Auto-creates named Figma Sections and arranges screenshots in clean grids.
+- 🔒 **Safe Multi-Project Isolation**: Runs in its own dedicated table (`droppy_screenshots`) and storage bucket without affecting any of your existing Supabase tables (e.g. `profiles`).
+
+---
+
+## 🚀 3-Step Cloud Setup Guide
+
+### Step 1: Run SQL in Supabase (1 Minute)
+1. Open your [Supabase Dashboard](https://supabase.com/dashboard) and select your project.
+2. Go to **SQL Editor** (left menu).
+3. Open [`supabase/schema.sql`](file:///Users/fwcuser/Desktop/Droppy-Figma-Screenshot/supabase/schema.sql) in this repo, copy its contents, and click **Run**.
+
+> [!NOTE]
+> **Coexistence Guarantee:** This migration only creates the `droppy_screenshots` table and `droppy-screenshots` bucket. It will **never** alter or overwrite your existing tables like `profiles` or existing Auth configurations.
+
+---
+
+### Step 2: Deploy Web App to Vercel (1 Minute)
+1. Push this repository to GitHub.
+2. Go to [Vercel](https://vercel.com/new) → Import your repository.
+3. Set the **Root Directory** to `web`.
+4. Add the following **Environment Variables** in Vercel settings (from Supabase Dashboard → *Project Settings* → *API*):
+   - `NEXT_PUBLIC_SUPABASE_URL`: `https://your-project.supabase.co`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: `eyJhbGci...`
+5. Click **Deploy**. You will get a live URL (e.g. `https://droppy.vercel.app`).
+
+---
+
+### Step 3: Load the Plugin in Figma Desktop
+1. Open Figma Desktop App.
+2. Go to: **Plugins → Development → Import plugin from manifest...**
+3. Select `figma-plugin/manifest.json`.
+4. Run the plugin (`Cmd + /` on Mac or `Ctrl + /` on Windows → type **Droppy**).
+5. Click the ⚙️ **Settings** icon, enter your Supabase URL & Anon Key, and click **Save**.
+6. Click **Sign in with Google**!
+
+---
+
+## 📱 How Users Use Droppy
+
+1. **Open Figma Plugin**: The user launches Droppy inside Figma.
+2. **Scan Dynamic QR Code**: The plugin displays a secure QR code paired to their account.
+3. **Select Photos on Mobile**: The user scans the QR with their mobile camera, selects 1 or 20 screenshots, and taps **Send to Figma**.
+4. **Insert into Canvas**: Screenshots stream live into the Figma plugin. Choose a Section name or click **Insert All**!
+
+---
+
+## 🛠️ Environment Variables Reference
+
+| Variable | Description | Example |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase Project API URL | `https://xyzproject.supabase.co` |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase Public / Anon API Key | `eyJhbGciOiJIUzI1Ni...` |
+| `NEXT_PUBLIC_APP_URL` | Deployed Vercel Web App URL | `https://droppy.vercel.app` |
+
+---
+
+## 💻 Optional: Local Wi-Fi Mode (Offline)
+
+If you prefer to run offline over local Wi-Fi without cloud services:
 ```bash
-git clone https://github.com/Anshul2021/Droppy-Screenshot-Saver.git
-cd Droppy-Screenshot-Saver/server
+cd server
 npm install
 npm start
 ```
-The terminal will print your local mobile upload link:
-```text
-==================================================
-  DROPPY SCREENSHOT INBOX SERVER
-==================================================
-Server listening on http://0.0.0.0:3847
-Mobile upload address: http://192.168.1.xxx:3847
-==================================================
-```
-
-### 2️⃣ Load the Plugin into Figma Desktop
-1. Open the **Figma Desktop App** (open any file).
-2. Go to: **Plugins → Development → Import plugin from manifest...**
-3. Select `Droppy-Screenshot-Saver/figma-plugin/manifest.json`.
-4. Run the plugin anytime via `Cmd + /` (Mac) or `Ctrl + /` (Windows) → type **Screenshot Inbox**.
-
-### 3️⃣ Open on Your Phone
-1. Connect your phone to the **same Wi-Fi** as your computer.
-2. Open Safari/Chrome on your phone and go to your printed URL (e.g. `http://192.168.1.xxx:3847`).
-3. Tap **Select Screenshots** (multi-selection supported) → tap **Send to Figma**.
-
-### 4️⃣ Drop into Canvas
-- In Figma, your screenshots appear **live in real-time** (no reload needed).
-- Pick or name your Figma **Section** (e.g., `Mobile Screenshots`), then click **Insert All to Canvas**!
-
-> [!TIP]
-> **Share with Teammates (Guest Mode):** If a colleague wants to send screenshots to *your* Figma file, they don't need to install anything! Just send them your local IP link while on the same Wi-Fi.
-
-> [!IMPORTANT]
-> **Office / Enterprise Wi-Fi Tip:** If your office Wi-Fi has *Client Isolation* (firewall blocking device-to-device connections), simply turn on your phone's **Personal Hotspot**, connect your laptop to it, and run `npm start`. It works 100% reliably anywhere!
+Open `http://localhost:3847` on desktop and the printed IP on mobile.
 
 ---
 
-## ✨ Key Features
-
-| Feature | Description |
-|---|---|
-| 🔄 **Live Sync Engine** | Screenshots uploaded from mobile pop up in Figma within ~1s without manual refresh. |
-| 🗂️ **Figma Section Support** | Organizes imported screenshots into named Figma Sections in clean, non-overlapping grids. |
-| 📱 **Multi-Image Selection** | Select 5, 10, or 20 screenshots at once with live dimensions and file size previews. |
-| ⚡ **Smart Downscaling** | Auto-downscales images exceeding Figma's 4096px canvas limit to prevent crashes. |
-| 🛡️ **Memory & Cache Optimized** | `no-store` headers and explicit blob cleanup prevent device RAM buildup when clearing inbox. |
-| 🔒 **100% Private & Local** | Everything stays on your local network. No databases, accounts, or cloud storage. |
-
----
-
-## 📂 Project Structure
+## 📂 Repository Structure
 
 ```text
 Droppy-Screenshot-Saver/
+├── supabase/
+│   └── schema.sql          # 1-click Supabase database & storage migration
+├── web/                    # Vercel-ready mobile/desktop web client
+│   ├── index.html          # Responsive mobile interface with Google Auth
+│   ├── style.css           # Modern dark mode design system & shimmers
+│   ├── app.js              # Direct Supabase Storage upload & Realtime sync
+│   ├── config.js           # Runtime configuration
+│   ├── vercel.json         # Vercel deployment routing & headers
+│   └── package.json        # Web dependencies
 ├── figma-plugin/
-│   ├── manifest.json       # Figma plugin manifest (devAllowedDomains port 3847)
-│   ├── code.js             # Figma main canvas thread (Section creation & grid layout)
-│   ├── ui.html             # Plugin UI iframe with Live Sync & progress modal
-│   ├── ui.js               # Plugin network communication & image downscaling
-│   └── logo.png            # 2D flat brand logo
-├── server/
-│   ├── server.js           # Local Express server (binds to 0.0.0.0:3847)
-│   ├── package.json        # Dependencies (Express, Multer, image-size, CORS)
-│   ├── uploads/            # Filesystem queue (<timestamp>-<suffix>.<ext>)
-│   └── public/             # Mobile/Desktop web upload client
-│       ├── index.html      # Responsive mobile-first interface
-│       ├── style.css       # Utility stylesheet with skeleton shimmer
-│       ├── app.js          # Multi-selection client with active memory release
-│       └── logo.png        # Brand icon & favicon
+│   ├── manifest.json       # Figma manifest with Supabase network permissions
+│   ├── code.js             # Figma canvas section creation & grid layout
+│   ├── ui.html             # Figma UI with Google Auth & QR pairing
+│   ├── ui.js               # Realtime Supabase synchronization engine
+│   └── logo.png            # 2D Droppy logo asset
+├── server/                 # Local Node.js Express server fallback
+│   ├── server.js
+│   └── package.json
+├── .env.example            # Environment variables template
 └── README.md
 ```
 
 ---
 
-## 🛠️ Daily Workflow
-
-To run Droppy anytime:
-```bash
-cd server
-npm start
-```
-When you're done for the day, press `Ctrl + C` in your terminal. All code and Figma plugin configurations remain saved.
+## 📄 License
+MIT License. Free to use and customize.

@@ -1,48 +1,61 @@
-// Droppy - Screenshot Inbox (Figma Plugin UI Iframe Logic)
+// Droppy - Screenshot Inbox (Figma Plugin Cloud Client)
 
 (function () {
   'use strict';
 
-  const SERVER_BASE = 'http://localhost:3847';
   const MAX_FIGMA_DIMENSION = 4096;
 
   // DOM Elements
   const statusDot = document.getElementById('statusDot');
   const liveBadge = document.getElementById('liveBadge');
-  const countBadge = document.getElementById('countBadge');
-  const errorBanner = document.getElementById('errorBanner');
+  const refreshBtn = document.getElementById('refreshBtn');
+  const settingsBtn = document.getElementById('settingsBtn');
+  const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+  const savePluginSettingsBtn = document.getElementById('savePluginSettingsBtn');
+  const pluginSupabaseUrl = document.getElementById('pluginSupabaseUrl');
+  const pluginSupabaseAnon = document.getElementById('pluginSupabaseAnon');
+  const pluginVercelUrl = document.getElementById('pluginVercelUrl');
+
+  const userBar = document.getElementById('userBar');
+  const userBarEmail = document.getElementById('userBarEmail');
+  const signOutBtn = document.getElementById('signOutBtn');
+
+  const qrBanner = document.getElementById('qrBanner');
+  const qrContainer = document.getElementById('qrContainer');
+  const toggleQrBtn = document.getElementById('toggleQrBtn');
+  const copyMobileLinkBtn = document.getElementById('copyMobileLinkBtn');
+
+  const sectionConfig = document.getElementById('sectionConfig');
+  const sectionTargetSelect = document.getElementById('sectionTargetSelect');
+  const sectionNameInput = document.getElementById('sectionNameInput');
+
+  const queueListContainer = document.getElementById('queueListContainer');
   const skeletonContainer = document.getElementById('skeletonContainer');
   const queueList = document.getElementById('queueList');
   const emptyState = document.getElementById('emptyState');
-  const actionFooter = document.getElementById('actionFooter');
-  const insertAllBtn = document.getElementById('insertAllBtn');
-  const refreshBtn = document.getElementById('refreshBtn');
 
-  const sectionTargetSelect = document.getElementById('sectionTargetSelect');
-  const sectionNameInput = document.getElementById('sectionNameInput');
+  const authView = document.getElementById('authView');
+  const authGoogleBtn = document.getElementById('authGoogleBtn');
+  const settingsView = document.getElementById('settingsView');
+
+  const pluginFooter = document.getElementById('pluginFooter');
+  const insertAllBtn = document.getElementById('insertAllBtn');
+  const clearInboxBtn = document.getElementById('clearInboxBtn');
 
   const progressModal = document.getElementById('progressModal');
   const progressStatus = document.getElementById('progressStatus');
   const progressBarFill = document.getElementById('progressBarFill');
 
   // State
+  let supabase = null;
+  let currentUser = null;
+  let realtimeChannel = null;
   let cachedScreenshots = [];
-  let lastKnownJson = '';
-  let isBusy = false;
   let existingSections = [];
+  let isBusy = false;
+  let qrcodeInstance = null;
 
-  // Helper: Show Error Banner
-  function showError(msg) {
-    if (!errorBanner) return;
-    errorBanner.textContent = msg;
-    errorBanner.classList.remove('hidden');
-  }
-
-  function hideError() {
-    if (!errorBanner) return;
-    errorBanner.classList.add('hidden');
-  }
-
+  // Helpers
   function setOnline(online) {
     if (statusDot) {
       if (online) {
@@ -62,6 +75,14 @@
     return `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
   }
 
+  function formatBytes(bytes) {
+    if (!bytes || bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  }
+
   function showProgress(status, percent) {
     if (!progressModal) return;
     progressModal.classList.remove('hidden');
@@ -74,6 +95,425 @@
     progressModal.classList.add('hidden');
     progressBarFill.style.width = '0%';
   }
+
+  // 1. Initialize Supabase Client
+  function initSupabase() {
+    const sbUrl = localStorage.getItem('droppy_figma_supabase_url') || '';
+    const sbKey = localStorage.getItem('droppy_figma_supabase_anon') || '';
+    const vUrl = localStorage.getItem('droppy_figma_vercel_url') || 'https://droppy.vercel.app';
+
+    pluginSupabaseUrl.value = sbUrl;
+    pluginSupabaseAnon.value = sbKey;
+    pluginVercelUrl.value = vUrl;
+
+    if (!sbUrl || !sbKey) {
+      showSettings();
+      return false;
+    }
+
+    try {
+      supabase = window.supabase.createClient(sbUrl, sbKey, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true
+        }
+      });
+      return true;
+    } catch (err) {
+      console.error('[Droppy Plugin] Error initializing Supabase:', err);
+      return false;
+    }
+  }
+
+  // 2. Auth State
+  async function setupAuth() {
+    if (!supabase) return;
+
+    const { data: { session } } = await supabase.auth.getSession();
+    handleSession(session);
+
+    supabase.auth.onAuthStateChange((_event, session) => {
+      handleSession(session);
+    });
+  }
+
+  function handleSession(session) {
+    if (session && session.user) {
+      currentUser = session.user;
+      authView.classList.add('hidden');
+      settingsView.classList.add('hidden');
+      userBar.classList.remove('hidden');
+      qrBanner.classList.remove('hidden');
+      sectionConfig.classList.remove('hidden');
+      queueListContainer.classList.remove('hidden');
+      pluginFooter.classList.remove('hidden');
+
+      userBarEmail.textContent = currentUser.email || 'Connected';
+
+      generateQrCode(session);
+      subscribeToRealtime();
+      fetchScreenshots();
+      setOnline(true);
+    } else {
+      currentUser = null;
+      authView.classList.remove('hidden');
+      userBar.classList.add('hidden');
+      qrBanner.classList.add('hidden');
+      sectionConfig.classList.add('hidden');
+      queueListContainer.classList.add('hidden');
+      pluginFooter.classList.add('hidden');
+      setOnline(false);
+
+      if (realtimeChannel) {
+        supabase.removeChannel(realtimeChannel);
+        realtimeChannel = null;
+      }
+    }
+  }
+
+  // 3. QR Code Generation for Mobile Auto-Pairing
+  function getMobilePairingUrl(session) {
+    const vUrl = localStorage.getItem('droppy_figma_vercel_url') || 'https://droppy.vercel.app';
+    const sbUrl = localStorage.getItem('droppy_figma_supabase_url') || '';
+    const sbKey = localStorage.getItem('droppy_figma_supabase_anon') || '';
+
+    const params = new URLSearchParams();
+    if (session) {
+      params.set('access_token', session.access_token);
+      params.set('refresh_token', session.refresh_token);
+    }
+    if (sbUrl) params.set('supabase_url', sbUrl);
+    if (sbKey) params.set('supabase_key', sbKey);
+
+    return `${vUrl}?${params.toString()}`;
+  }
+
+  function generateQrCode(session) {
+    if (!qrContainer) return;
+    qrContainer.innerHTML = '';
+    const mobileUrl = getMobilePairingUrl(session);
+
+    try {
+      qrcodeInstance = new QRCode(qrContainer, {
+        text: mobileUrl,
+        width: 64,
+        height: 64,
+        colorDark: '#000000',
+        colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.M
+      });
+    } catch (err) {
+      // Fallback to QR Server image if QRCode library fails
+      qrContainer.innerHTML = `<img src="https://api.qrserver.com/v1/create-qr-code/?size=64x64&data=${encodeURIComponent(mobileUrl)}" alt="QR">`;
+    }
+  }
+
+  copyMobileLinkBtn.addEventListener('click', () => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      const link = getMobilePairingUrl(session);
+      navigator.clipboard.writeText(link).then(() => {
+        parent.postMessage({ pluginMessage: { type: 'notify', message: 'Mobile upload link copied to clipboard!' } }, '*');
+      });
+    });
+  });
+
+  toggleQrBtn.addEventListener('click', () => {
+    const qrContent = document.getElementById('qrContent');
+    if (qrContent.classList.contains('hidden')) {
+      qrContent.classList.remove('hidden');
+      toggleQrBtn.textContent = 'Hide';
+    } else {
+      qrContent.classList.add('hidden');
+      toggleQrBtn.textContent = 'Show';
+    }
+  });
+
+  // 4. Realtime Subscription
+  function subscribeToRealtime() {
+    if (!supabase || !currentUser) return;
+    if (realtimeChannel) supabase.removeChannel(realtimeChannel);
+
+    realtimeChannel = supabase
+      .channel('droppy-figma-sync')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'droppy_screenshots',
+          filter: `user_id=eq.${currentUser.id}`
+        },
+        () => {
+          fetchScreenshots();
+        }
+      )
+      .subscribe();
+  }
+
+  // 5. Fetch Screenshots
+  async function fetchScreenshots() {
+    if (!supabase || !currentUser || isBusy) return;
+
+    try {
+      skeletonContainer.classList.remove('hidden');
+
+      const { data, error } = await supabase
+        .from('droppy_screenshots')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .order('created_at', { ascending: false });
+
+      skeletonContainer.classList.add('hidden');
+      if (error) throw error;
+
+      cachedScreenshots = data || [];
+      renderQueue();
+    } catch (err) {
+      skeletonContainer.classList.add('hidden');
+      console.error('[Droppy Plugin] Error fetching screenshots:', err);
+    }
+  }
+
+  function renderQueue() {
+    queueList.innerHTML = '';
+    const count = cachedScreenshots.length;
+    insertAllBtn.textContent = `Insert All (${count})`;
+    insertAllBtn.disabled = count === 0;
+
+    if (count === 0) {
+      emptyState.classList.remove('hidden');
+      return;
+    }
+
+    emptyState.classList.add('hidden');
+
+    cachedScreenshots.forEach((item) => {
+      const el = document.createElement('div');
+      el.className = 'queue-item';
+
+      const timeStr = formatRelativeTime(item.created_at);
+      const metaStr = `${item.width ? `${item.width}×${item.height}` : ''} ${item.size_bytes ? `• ${formatBytes(item.size_bytes)}` : ''} ${timeStr ? `• ${timeStr}` : ''}`.trim();
+
+      el.innerHTML = `
+        <div class="item-left">
+          <img src="${item.public_url}" class="item-thumb" alt="${item.filename}" loading="lazy">
+          <div class="item-info">
+            <span class="item-name" title="${item.filename}">${item.filename}</span>
+            <span class="item-meta">${metaStr}</span>
+          </div>
+        </div>
+        <div class="item-actions">
+          <button class="btn-insert" data-id="${item.id}">Insert</button>
+          <button class="btn-delete-item" data-id="${item.id}" title="Delete">&times;</button>
+        </div>
+      `;
+
+      el.querySelector('.btn-insert').addEventListener('click', () => {
+        insertSingleScreenshot(item);
+      });
+
+      el.querySelector('.btn-delete-item').addEventListener('click', async () => {
+        await deleteScreenshot(item);
+      });
+
+      queueList.appendChild(el);
+    });
+  }
+
+  async function deleteScreenshot(item) {
+    try {
+      if (item.storage_path) {
+        await supabase.storage.from('droppy-screenshots').remove([item.storage_path]);
+      }
+      await supabase.from('droppy_screenshots').delete().eq('id', item.id);
+      fetchScreenshots();
+    } catch (err) {
+      console.error('[Droppy Plugin] Delete error:', err);
+    }
+  }
+
+  // Clear Inbox
+  clearInboxBtn.addEventListener('click', async () => {
+    if (!currentUser || cachedScreenshots.length === 0) return;
+
+    try {
+      const paths = cachedScreenshots.map((i) => i.storage_path).filter(Boolean);
+      if (paths.length > 0) {
+        await supabase.storage.from('droppy-screenshots').remove(paths);
+      }
+      await supabase.from('droppy_screenshots').delete().eq('user_id', currentUser.id);
+      fetchScreenshots();
+      parent.postMessage({ pluginMessage: { type: 'notify', message: 'Cloud inbox cleared' } }, '*');
+    } catch (err) {
+      console.error('[Droppy Plugin] Clear inbox error:', err);
+    }
+  });
+
+  // 6. Downscale & Image Processing for Figma Canvas
+  function fetchAndProcessImage(url, maxDim = MAX_FIGMA_DIMENSION) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        let w = img.naturalWidth || img.width;
+        let h = img.naturalHeight || img.height;
+
+        if (w <= maxDim && h <= maxDim) {
+          fetch(url)
+            .then((res) => res.arrayBuffer())
+            .then((buf) => resolve({ bytes: new Uint8Array(buf), width: w, height: h }))
+            .catch(() => {
+              // Offscreen canvas fallback
+              const canvas = document.createElement('canvas');
+              canvas.width = w;
+              canvas.height = h;
+              const ctx = canvas.getContext('2d');
+              ctx.drawImage(img, 0, 0, w, h);
+              canvas.toBlob((blob) => {
+                blob.arrayBuffer().then((ab) => resolve({ bytes: new Uint8Array(ab), width: w, height: h }));
+              }, 'image/png');
+            });
+          return;
+        }
+
+        // Downscale proportionally
+        let scale = Math.min(maxDim / w, maxDim / h);
+        let targetW = Math.round(w * scale);
+        let targetH = Math.round(h * scale);
+
+        const canvas = document.createElement('canvas');
+        canvas.width = targetW;
+        canvas.height = targetH;
+        const ctx = canvas.getContext('2d');
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, 0, 0, targetW, targetH);
+
+        canvas.toBlob((blob) => {
+          if (!blob) return reject(new Error('Canvas blob conversion failed'));
+          blob.arrayBuffer().then((ab) => resolve({ bytes: new Uint8Array(ab), width: targetW, height: targetH }));
+        }, 'image/png');
+      };
+      img.onerror = () => reject(new Error('Failed to load image from URL'));
+      img.src = url;
+    });
+  }
+
+  // 7. Insert Actions
+  function getSectionOptions() {
+    const rawVal = sectionTargetSelect.value;
+    let sectionOption = 'none';
+    let targetSectionId = null;
+
+    if (rawVal === 'new') {
+      sectionOption = 'new';
+    } else if (rawVal.startsWith('existing:')) {
+      sectionOption = 'existing';
+      targetSectionId = rawVal.replace('existing:', '');
+    }
+
+    const sectionName = sectionNameInput.value.trim() || undefined;
+    return { sectionOption, targetSectionId, sectionName };
+  }
+
+  async function insertSingleScreenshot(item) {
+    if (isBusy) return;
+    isBusy = true;
+    showProgress(`Loading ${item.filename}...`, 50);
+
+    try {
+      const processed = await fetchAndProcessImage(item.public_url);
+      const sec = getSectionOptions();
+
+      parent.postMessage(
+        {
+          pluginMessage: {
+            type: 'insert',
+            filename: item.filename,
+            bytes: Array.from(processed.bytes),
+            width: processed.width,
+            height: processed.height,
+            sectionOption: sec.sectionOption,
+            targetSectionId: sec.targetSectionId,
+            sectionName: sec.sectionName
+          }
+        },
+        '*'
+      );
+    } catch (err) {
+      console.error('[Droppy Plugin] Insert error:', err);
+      parent.postMessage({ pluginMessage: { type: 'notify', message: `Failed to insert: ${err.message}`, isError: true } }, '*');
+    } finally {
+      hideProgress();
+      isBusy = false;
+    }
+  }
+
+  insertAllBtn.addEventListener('click', async () => {
+    if (isBusy || cachedScreenshots.length === 0) return;
+    isBusy = true;
+
+    const total = cachedScreenshots.length;
+    const items = [];
+    showProgress(`Preparing ${total} screenshots...`, 10);
+
+    for (let i = 0; i < total; i++) {
+      const item = cachedScreenshots[i];
+      const pct = Math.round(((i + 1) / total) * 90);
+      showProgress(`Processing ${i + 1}/${total}: ${item.filename}`, pct);
+
+      try {
+        const processed = await fetchAndProcessImage(item.public_url);
+        items.push({
+          filename: item.filename,
+          bytes: Array.from(processed.bytes),
+          width: processed.width,
+          height: processed.height
+        });
+      } catch (err) {
+        console.error('[Droppy Plugin] Failed to process image:', item.filename, err);
+      }
+    }
+
+    if (items.length === 0) {
+      hideProgress();
+      isBusy = false;
+      parent.postMessage({ pluginMessage: { type: 'notify', message: 'No valid images could be processed', isError: true } }, '*');
+      return;
+    }
+
+    showProgress('Creating Figma canvas section & layout...', 95);
+    const sec = getSectionOptions();
+
+    parent.postMessage(
+      {
+        pluginMessage: {
+          type: 'insert-all',
+          items,
+          sectionOption: sec.sectionOption,
+          targetSectionId: sec.targetSectionId,
+          sectionName: sec.sectionName
+        }
+      },
+      '*'
+    );
+  });
+
+  // 8. Handle Messages from Figma Main Thread (code.js)
+  window.onmessage = (event) => {
+    const msg = event.data?.pluginMessage;
+    if (!msg) return;
+
+    if (msg.type === 'sections-list') {
+      updateSectionsDropdown(msg.sections || []);
+    }
+
+    if (msg.type === 'insert-all-complete' || msg.type === 'insert-complete') {
+      hideProgress();
+      isBusy = false;
+    }
+  };
 
   function updateSectionsDropdown(sections) {
     existingSections = sections || [];
@@ -99,331 +539,91 @@
 
     const optNone = document.createElement('option');
     optNone.value = 'none';
-    optNone.textContent = 'Canvas (No Section)';
+    optNone.textContent = '⚡ Free Canvas';
     sectionTargetSelect.appendChild(optNone);
 
-    if (currentVal && Array.from(sectionTargetSelect.options).some(o => o.value === currentVal)) {
+    if (currentVal && Array.from(sectionTargetSelect.options).some((o) => o.value === currentVal)) {
       sectionTargetSelect.value = currentVal;
     }
-
-    handleSectionSelectChange();
   }
 
-  function handleSectionSelectChange() {
-    const val = sectionTargetSelect.value;
-    if (val === 'new') {
-      sectionNameInput.classList.remove('hidden');
-    } else {
-      sectionNameInput.classList.add('hidden');
+  // 9. Auth Actions
+  authGoogleBtn.addEventListener('click', async () => {
+    if (!supabase) {
+      showSettings();
+      return;
     }
-  }
-
-  sectionTargetSelect.addEventListener('change', handleSectionSelectChange);
-
-  async function prepareImageBytes(blob, initialWidth, initialHeight) {
-    return new Promise((resolve, reject) => {
-      if (initialWidth && initialHeight && initialWidth <= MAX_FIGMA_DIMENSION && initialHeight <= MAX_FIGMA_DIMENSION) {
-        const reader = new FileReader();
-        reader.onload = () => {
-          resolve({
-            bytes: Array.from(new Uint8Array(reader.result)),
-            width: initialWidth,
-            height: initialHeight
-          });
-        };
-        reader.onerror = () => reject(new Error('Failed to read image buffer'));
-        reader.readAsArrayBuffer(blob);
-        return;
-      }
-
-      const img = new Image();
-      const url = URL.createObjectURL(blob);
-      img.onload = () => {
-        URL.revokeObjectURL(url);
-        let width = img.naturalWidth || initialWidth || 800;
-        let height = img.naturalHeight || initialHeight || 600;
-
-        if (width > MAX_FIGMA_DIMENSION || height > MAX_FIGMA_DIMENSION) {
-          const scale = Math.min(MAX_FIGMA_DIMENSION / width, MAX_FIGMA_DIMENSION / height);
-          width = Math.round(width * scale);
-          height = Math.round(height * scale);
-        }
-
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, width, height);
-
-        canvas.toBlob((resizedBlob) => {
-          if (!resizedBlob) return reject(new Error('Canvas export failed'));
-          const reader = new FileReader();
-          reader.onload = () => {
-            resolve({
-              bytes: Array.from(new Uint8Array(reader.result)),
-              width,
-              height
-            });
-          };
-          reader.onerror = () => reject(new Error('Failed to read resized image'));
-          reader.readAsArrayBuffer(resizedBlob);
-        }, 'image/png');
-      };
-      img.onerror = () => {
-        URL.revokeObjectURL(url);
-        reject(new Error('Failed to decode image'));
-      };
-      img.src = url;
-    });
-  }
-
-  async function fetchImageForPlugin(item) {
-    const imageUrl = item.url.startsWith('http') ? item.url : `${SERVER_BASE}${item.url}`;
-    const res = await fetch(imageUrl);
-    if (!res.ok) throw new Error(`Failed to fetch image ${item.filename} (HTTP ${res.status})`);
-    const blob = await res.blob();
-    const prepared = await prepareImageBytes(blob, item.width, item.height);
-    return {
-      bytes: prepared.bytes,
-      width: prepared.width,
-      height: prepared.height,
-      filename: item.filename
-    };
-  }
-
-  function getSectionParams() {
-    const val = sectionTargetSelect.value;
-    if (val.startsWith('existing:')) {
-      return {
-        sectionOption: 'existing',
-        targetSectionId: val.replace('existing:', ''),
-        sectionName: ''
-      };
-    }
-    if (val === 'none') {
-      return {
-        sectionOption: 'none',
-        targetSectionId: null,
-        sectionName: ''
-      };
-    }
-    return {
-      sectionOption: 'new',
-      targetSectionId: null,
-      sectionName: sectionNameInput.value.trim() || 'Mobile Screenshots'
-    };
-  }
-
-  async function handleInsertItem(item, buttonEl) {
-    if (isBusy) return;
-    isBusy = true;
-    hideError();
-    const originalText = buttonEl ? buttonEl.textContent : 'Insert';
-    if (buttonEl) {
-      buttonEl.textContent = 'Inserting...';
-      buttonEl.disabled = true;
-    }
-
     try {
-      const payload = await fetchImageForPlugin(item);
-      const sectionParams = getSectionParams();
-
-      parent.postMessage({
-        pluginMessage: {
-          type: 'insert',
-          bytes: payload.bytes,
-          width: payload.width,
-          height: payload.height,
-          filename: item.filename,
-          ...sectionParams
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          skipBrowserRedirect: false
         }
-      }, '*');
-    } catch (err) {
-      console.error('[Droppy Plugin] Single insert error:', err);
-      showError('Failed to insert screenshot. Check connection.');
-    } finally {
-      if (buttonEl) {
-        buttonEl.textContent = originalText;
-        buttonEl.disabled = false;
-      }
-      isBusy = false;
-    }
-  }
-
-  async function handleInsertAll() {
-    if (isBusy || cachedScreenshots.length === 0) return;
-    isBusy = true;
-    hideError();
-    insertAllBtn.disabled = true;
-
-    const total = cachedScreenshots.length;
-    showProgress(`Preparing 1 of ${total} screenshots...`, 10);
-
-    const payloads = [];
-    for (let i = 0; i < total; i++) {
-      const item = cachedScreenshots[i];
-      try {
-        showProgress(`Downloading ${i + 1} of ${total}: ${item.filename}`, Math.round(((i + 1) / total) * 80));
-        const payload = await fetchImageForPlugin(item);
-        payloads.push(payload);
-      } catch (err) {
-        console.error('[Droppy Plugin] Error fetching item for Insert All:', item.filename, err);
-      }
-    }
-
-    if (payloads.length > 0) {
-      showProgress(`Placing ${payloads.length} screenshots into Figma...`, 95);
-      const sectionParams = getSectionParams();
-
-      parent.postMessage({
-        pluginMessage: {
-          type: 'insert-all',
-          items: payloads,
-          ...sectionParams
-        }
-      }, '*');
-    } else {
-      showError('Failed to download screenshots for insertion.');
-      hideProgress();
-      insertAllBtn.disabled = false;
-      isBusy = false;
-    }
-  }
-
-  async function handleDeleteItem(filename) {
-    hideError();
-    try {
-      const res = await fetch(`${SERVER_BASE}/screenshots/${encodeURIComponent(filename)}`, {
-        method: 'DELETE'
       });
-      if (!res.ok) throw new Error(`Failed to delete (${res.status})`);
-      fetchScreenshots();
+      if (error) throw error;
+      if (data && data.url) {
+        window.open(data.url, '_blank');
+      }
     } catch (err) {
-      console.error('[Droppy Plugin] Delete error:', err);
-      showError('Failed to delete screenshot.');
+      console.error('[Droppy Plugin] Auth error:', err);
+      parent.postMessage({ pluginMessage: { type: 'notify', message: `Sign in error: ${err.message}`, isError: true } }, '*');
+    }
+  });
+
+  signOutBtn.addEventListener('click', async () => {
+    if (!supabase) return;
+    await supabase.auth.signOut();
+  });
+
+  refreshBtn.addEventListener('click', () => {
+    fetchScreenshots();
+    parent.postMessage({ pluginMessage: { type: 'get-sections' } }, '*');
+  });
+
+  // Settings
+  function showSettings() {
+    settingsView.classList.remove('hidden');
+    authView.classList.add('hidden');
+    queueListContainer.classList.add('hidden');
+  }
+
+  function hideSettings() {
+    settingsView.classList.add('hidden');
+    if (currentUser) {
+      queueListContainer.classList.remove('hidden');
+    } else {
+      authView.classList.remove('hidden');
     }
   }
 
-  function renderScreenshots(items) {
-    if (skeletonContainer) skeletonContainer.classList.add('hidden');
-    cachedScreenshots = items || [];
-    const count = cachedScreenshots.length;
-    countBadge.textContent = count === 0 ? 'No screenshots waiting' : `${count} screenshot${count === 1 ? '' : 's'} waiting`;
+  settingsBtn.addEventListener('click', showSettings);
+  closeSettingsBtn.addEventListener('click', hideSettings);
 
-    if (count === 0) {
-      emptyState.classList.remove('hidden');
-      queueList.innerHTML = '';
-      actionFooter.classList.add('hidden');
+  savePluginSettingsBtn.addEventListener('click', () => {
+    const url = pluginSupabaseUrl.value.trim();
+    const anon = pluginSupabaseAnon.value.trim();
+    const vUrl = pluginVercelUrl.value.trim() || 'https://droppy.vercel.app';
+
+    if (!url || !anon) {
+      parent.postMessage({ pluginMessage: { type: 'notify', message: 'Please provide Supabase URL and Anon Key', isError: true } }, '*');
       return;
     }
 
-    emptyState.classList.add('hidden');
-    actionFooter.classList.remove('hidden');
+    localStorage.setItem('droppy_figma_supabase_url', url);
+    localStorage.setItem('droppy_figma_supabase_anon', anon);
+    localStorage.setItem('droppy_figma_vercel_url', vUrl);
 
-    const fragment = document.createDocumentFragment();
-    cachedScreenshots.forEach((item) => {
-      const card = document.createElement('div');
-      card.className = 'item-card';
+    hideSettings();
+    parent.postMessage({ pluginMessage: { type: 'notify', message: 'Cloud settings saved!' } }, '*');
 
-      const thumbWrap = document.createElement('div');
-      thumbWrap.className = 'item-thumb-wrap';
-      const img = document.createElement('img');
-      img.className = 'item-thumb';
-      img.src = item.url.startsWith('http') ? item.url : `${SERVER_BASE}${item.url}`;
-      img.alt = item.filename;
-      img.loading = 'lazy';
-      thumbWrap.appendChild(img);
-
-      const info = document.createElement('div');
-      info.className = 'item-info';
-      const name = document.createElement('div');
-      name.className = 'item-name';
-      name.textContent = item.filename;
-
-      const meta = document.createElement('div');
-      meta.className = 'item-meta';
-      const dimsStr = item.width && item.height ? `${item.width} × ${item.height}` : 'Image';
-      const timeStr = formatRelativeTime(item.createdAt);
-      meta.textContent = timeStr ? `${dimsStr} • ${timeStr}` : dimsStr;
-
-      info.appendChild(name);
-      info.appendChild(meta);
-
-      const actions = document.createElement('div');
-      actions.className = 'item-actions';
-
-      const insertBtn = document.createElement('button');
-      insertBtn.type = 'button';
-      insertBtn.className = 'btn btn-action-insert';
-      insertBtn.textContent = 'Insert';
-      insertBtn.addEventListener('click', () => handleInsertItem(item, insertBtn));
-
-      const deleteBtn = document.createElement('button');
-      deleteBtn.type = 'button';
-      deleteBtn.className = 'btn btn-action-delete';
-      deleteBtn.textContent = 'Delete';
-      deleteBtn.addEventListener('click', () => handleDeleteItem(item.filename));
-
-      actions.appendChild(insertBtn);
-      actions.appendChild(deleteBtn);
-
-      card.appendChild(thumbWrap);
-      card.appendChild(info);
-      card.appendChild(actions);
-
-      fragment.appendChild(card);
-    });
-
-    queueList.innerHTML = '';
-    queueList.appendChild(fragment);
-  }
-
-  async function fetchScreenshots() {
-    try {
-      const res = await fetch(`${SERVER_BASE}/screenshots`);
-      if (!res.ok) throw new Error(`Server status ${res.status}`);
-      const data = await res.json();
-      setOnline(true);
-      hideError();
-
-      const jsonStr = JSON.stringify(data);
-      if (jsonStr !== lastKnownJson) {
-        lastKnownJson = jsonStr;
-        renderScreenshots(data);
-      }
-    } catch (err) {
-      console.error('[Droppy Plugin] Connection error:', err);
-      if (skeletonContainer) skeletonContainer.classList.add('hidden');
-      setOnline(false);
-      countBadge.textContent = 'Offline';
-      showError("Can't connect to server — ensure Node server is running on port 3847");
+    if (initSupabase()) {
+      setupAuth();
     }
-  }
-
-  window.onmessage = (event) => {
-    const msg = event.data && event.data.pluginMessage;
-    if (!msg) return;
-
-    if (msg.type === 'sections-list') {
-      updateSectionsDropdown(msg.sections);
-    }
-
-    if (msg.type === 'insert-complete' || msg.type === 'insert-all-complete') {
-      hideProgress();
-      insertAllBtn.disabled = false;
-      isBusy = false;
-      fetchScreenshots();
-    }
-  };
-
-  insertAllBtn.addEventListener('click', handleInsertAll);
-  refreshBtn.addEventListener('click', () => {
-    parent.postMessage({ pluginMessage: { type: 'get-sections' } }, '*');
-    fetchScreenshots();
   });
 
-  // Initial query & live polling every 1.5s
+  // Init
   parent.postMessage({ pluginMessage: { type: 'get-sections' } }, '*');
-  fetchScreenshots();
-  setInterval(fetchScreenshots, 1500);
+  if (initSupabase()) {
+    setupAuth();
+  }
 })();

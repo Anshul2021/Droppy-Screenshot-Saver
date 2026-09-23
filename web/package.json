@@ -1,0 +1,12 @@
+{
+  "name": "droppy-web",
+  "version": "2.0.0",
+  "description": "Droppy - Cloud Screenshot Inbox Web Client",
+  "scripts": {
+    "dev": "npx serve -s . -p 3000",
+    "start": "npx serve -s . -p 3000"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4"
+  }
+}
