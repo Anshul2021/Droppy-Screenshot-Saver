@@ -103,7 +103,7 @@
 
     const sbUrl = localStorage.getItem('droppy_figma_supabase_url') || DEFAULT_SB_URL;
     const sbKey = localStorage.getItem('droppy_figma_supabase_anon') || DEFAULT_SB_KEY;
-    const vUrl = localStorage.getItem('droppy_figma_vercel_url') || 'https://droppy.vercel.app';
+    const vUrl = localStorage.getItem('droppy_figma_vercel_url') || 'https://droppy-mu.vercel.app';
 
     pluginSupabaseUrl.value = sbUrl;
     pluginSupabaseAnon.value = sbKey;
