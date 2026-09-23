@@ -1,12 +1,5 @@
 {
-  "version": 2,
-  "public": true,
-  "rewrites": [
-    {
-      "source": "/((?!web/).*)",
-      "destination": "/web/$1"
-    }
-  ],
+  "cleanUrls": true,
   "headers": [
     {
       "source": "/(.*)",
