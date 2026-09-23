@@ -98,8 +98,11 @@
 
   // 1. Initialize Supabase Client
   function initSupabase() {
-    const sbUrl = localStorage.getItem('droppy_figma_supabase_url') || '';
-    const sbKey = localStorage.getItem('droppy_figma_supabase_anon') || '';
+    const DEFAULT_SB_URL = 'https://rjhojopsuprvxldntwko.supabase.co';
+    const DEFAULT_SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqaG9qb3BzdXBydnhsZG50d2tvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk2NjgxMzksImV4cCI6MjEwNTI0NDEzOX0.pFCK-9rlhIr-2241PiJiRnGQzvPNDkziwIRcFzyH_Pg';
+
+    const sbUrl = localStorage.getItem('droppy_figma_supabase_url') || DEFAULT_SB_URL;
+    const sbKey = localStorage.getItem('droppy_figma_supabase_anon') || DEFAULT_SB_KEY;
     const vUrl = localStorage.getItem('droppy_figma_vercel_url') || 'https://droppy.vercel.app';
 
     pluginSupabaseUrl.value = sbUrl;

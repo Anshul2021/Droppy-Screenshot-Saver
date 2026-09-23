@@ -1,9 +1,6 @@
 // Droppy Cloud Client Configuration
-// You can replace these with your project values or enter them in the app settings modal.
+// Pre-configured for project: https://rjhojopsuprvxldntwko.supabase.co
 window.DROPPY_CONFIG = {
-  // Replace with your Supabase Project URL (e.g. 'https://your-project.supabase.co')
-  supabaseUrl: window.localStorage.getItem('droppy_supabase_url') || '',
-  
-  // Replace with your Supabase Anon Key
-  supabaseAnonKey: window.localStorage.getItem('droppy_supabase_anon_key') || ''
+  supabaseUrl: window.localStorage.getItem('droppy_supabase_url') || 'https://rjhojopsuprvxldntwko.supabase.co',
+  supabaseAnonKey: window.localStorage.getItem('droppy_supabase_anon_key') || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJqaG9qb3BzdXBydnhsZG50d2tvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk2NjgxMzksImV4cCI6MjEwNTI0NDEzOX0.pFCK-9rlhIr-2241PiJiRnGQzvPNDkziwIRcFzyH_Pg'
 };
