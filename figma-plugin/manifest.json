@@ -17,10 +17,8 @@
       "https://cdn.jsdelivr.net",
       "https://cdnjs.cloudflare.com",
       "https://api.qrserver.com",
-      "http://localhost:*"
-    ],
-    "devAllowedDomains": [
-      "*"
+      "http://localhost:3847",
+      "http://127.0.0.1:3847"
     ],
     "reasoning": "Droppy connects to Supabase and Vercel cloud to securely sync screenshot inbox across your mobile phone and Figma."
   }
