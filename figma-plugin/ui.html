@@ -1352,12 +1352,13 @@
         parent.postMessage({ pluginMessage: { type: 'get-sections' } }, '*');
       });
 
-      // Auto-restore previous session if any
-      const savedId = localStorage.getItem('droppy_active_user_id');
-      const savedEmail = localStorage.getItem('droppy_active_user_email');
-      if (savedId) {
-        setConnected({ id: savedId, email: savedEmail || 'Connected Device' });
+      // Auto-connect on open so QR code and inbox are instantly ready!
+      let savedId = localStorage.getItem('droppy_active_user_id');
+      let savedEmail = localStorage.getItem('droppy_active_user_email');
+      if (!savedId) {
+        savedId = 'droppy_' + Math.random().toString(36).substring(2, 10);
       }
+      setConnected({ id: savedId, email: savedEmail || 'My Inbox' });
 
       parent.postMessage({ pluginMessage: { type: 'get-sections' } }, '*');
     })();

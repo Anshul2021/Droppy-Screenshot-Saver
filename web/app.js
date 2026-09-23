@@ -116,8 +116,23 @@
   async function setupAuth() {
     if (!supabase) return;
 
-    // Check URL for session tokens (e.g. from QR code pairing or OAuth callback)
     const urlParams = new URLSearchParams(window.location.search);
+    const userIdFromParam = urlParams.get('user_id') || localStorage.getItem('droppy_paired_user_id');
+
+    if (userIdFromParam) {
+      localStorage.setItem('droppy_paired_user_id', userIdFromParam);
+      currentUser = { id: userIdFromParam, email: 'Paired with Figma' };
+      authContainer.classList.add('hidden');
+      mainApp.classList.remove('hidden');
+      pairBanner.classList.remove('hidden');
+      userProfileBadge.classList.remove('hidden');
+      userEmail.textContent = 'Paired with Figma';
+      userAvatar.src = `https://api.dicebear.com/7.x/bottts/svg?seed=${userIdFromParam}`;
+      fetchInboxScreenshots();
+      return;
+    }
+
+    // Check URL for session tokens
     const accessToken = urlParams.get('access_token');
     const refreshToken = urlParams.get('refresh_token');
 
@@ -128,7 +143,6 @@
           refresh_token: refreshToken
         });
         pairBanner.classList.remove('hidden');
-        // Clean URL
         window.history.replaceState({}, document.title, window.location.pathname);
       } catch (err) {
         console.error('[Droppy] Error restoring session from link:', err);

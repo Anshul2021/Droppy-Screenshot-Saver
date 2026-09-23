@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Droppy — Connected</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'DM Sans', sans-serif; }
+    body { background: #0c0e14; color: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+    .card { background: #151821; border: 1px solid #242938; border-radius: 16px; padding: 32px 24px; max-width: 420px; width: 100%; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+    .icon-circle { width: 56px; height: 56px; border-radius: 50%; background: rgba(16, 185, 129, 0.15); color: #10b981; display: flex; align-items: center; justify-content: center; }
+    h1 { font-size: 1.3rem; font-weight: 700; color: #fff; }
+    p { font-size: 0.9rem; color: #94a3b8; line-height: 1.4; }
+    .btn { background: #0d99ff; color: #fff; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; font-size: 0.95rem; cursor: pointer; text-decoration: none; display: inline-block; width: 100%; }
+    .btn:hover { background: #0284c7; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon-circle">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+      </svg>
+    </div>
+    <h1>Signed In Successfully!</h1>
+    <p>You can now close this tab and return to Figma, or open the mobile upload page below.</p>
+    <a href="/" class="btn" id="btn-go-upload">Open Screenshot Upload</a>
+  </div>
+  <script>
+    // Extract access_token or user info from hash or query
+    const hash = window.location.hash;
+    if (hash) {
+      const params = new URLSearchParams(hash.replace('#', '?'));
+      const token = params.get('access_token');
+      if (token) {
+        localStorage.setItem('droppy_access_token', token);
+      }
+    }
+  </script>
+</body>
+</html>
