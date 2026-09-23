@@ -551,21 +551,38 @@
   }
 
   // 9. Auth Actions
+  const quickConnectBtn = document.getElementById('quickConnectBtn');
+
+  if (quickConnectBtn) {
+    quickConnectBtn.addEventListener('click', () => {
+      let guestId = localStorage.getItem('droppy_guest_session_id');
+      if (!guestId) {
+        guestId = 'user_' + Math.random().toString(36).substring(2, 14);
+        localStorage.setItem('droppy_guest_session_id', guestId);
+      }
+      currentUser = { id: guestId, email: 'Connected Device' };
+      handleSession({ access_token: guestId, refresh_token: guestId, user: currentUser });
+    });
+  }
+
   authGoogleBtn.addEventListener('click', async () => {
     if (!supabase) {
       showSettings();
       return;
     }
     try {
+      const vUrl = localStorage.getItem('droppy_figma_vercel_url') || 'https://droppy-mu.vercel.app';
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          skipBrowserRedirect: false
+          redirectTo: vUrl,
+          skipBrowserRedirect: true
         }
       });
       if (error) throw error;
       if (data && data.url) {
-        window.open(data.url, '_blank');
+        parent.postMessage({ pluginMessage: { type: 'open-url', url: data.url } }, '*');
+        parent.postMessage({ pluginMessage: { type: 'notify', message: 'Opening Google Sign-In in your browser...' } }, '*');
       }
     } catch (err) {
       console.error('[Droppy Plugin] Auth error:', err);

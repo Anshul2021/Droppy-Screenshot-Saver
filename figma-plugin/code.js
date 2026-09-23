@@ -55,6 +55,12 @@ figma.ui.onmessage = async (msg) => {
   if (!msg || typeof msg !== 'object') return;
 
   try {
+    // Open external URL in default browser
+    if (msg.type === 'open-url' && msg.url) {
+      figma.openExternal(msg.url);
+      return;
+    }
+
     // Request Sections List
     if (msg.type === 'get-sections') {
       sendExistingSectionsToUI();
